@@ -1,15 +1,34 @@
 package main
 
 import (
+	"database/sql"
 	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"strings"
 
+	_ "github.com/lib/pq"
 	"github.com/pressly/goose"
 	"github.com/spf13/viper"
 )
+
+func main() {
+	if err := migrate(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+const driver = "postgres"
+
+type DBConfig struct {
+	User     string `mapstructure:"user"`
+	Host     string `mapstructure:"host"`
+	Port     string `mapstructure:"port"`
+	DBName   string `mapstructure:"dbname"`
+	Password string `mapstructure:"password"`
+	SSLMode  string `mapstructure:"sslMode"`
+}
 
 func usage() {
 	const (
@@ -30,12 +49,6 @@ Commands:
 	fmt.Println(usageCommands)
 }
 
-func main() {
-	if err := migrate(); err != nil {
-		log.Fatal(err)
-	}
-}
-
 func migrate() error {
 	configPath := flag.String("config", "env/config", "config file")
 	format := flag.String("format", "ini", "config format")
@@ -46,9 +59,7 @@ func migrate() error {
 	args := flag.Args()
 
 	config := viper.NewWithOptions(
-		viper.EnvKeyReplacer(
-			strings.NewReplacer(".", "_"),
-		),
+		viper.EnvKeyReplacer(strings.NewReplacer(".", "_")),
 	)
 	config.SetConfigFile(*configPath)
 	config.SetConfigType(*format)
@@ -79,4 +90,44 @@ func migrate() error {
 
 	}
 	return db.Close()
+}
+
+func Open(config *viper.Viper) (*sql.DB, error) {
+	dbString, err := NewDBStringFromConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	db, err := sql.Open(driver, dbString)
+	if err != nil {
+		return nil, err
+	}
+
+	return db, nil
+}
+
+// NewDBStringFromConfig build database connection string from config file.
+func NewDBStringFromConfig(config *viper.Viper) (string, error) {
+	var allConfig struct {
+		Database DBConfig `mapstructure:"database"`
+	}
+	if err := config.Unmarshal(&allConfig); err != nil {
+		return "", fmt.Errorf("cannot unmarshal db config: %w", err)
+	}
+
+	return NewDBStringFromDBConfig(allConfig.Database)
+}
+
+func NewDBStringFromDBConfig(config DBConfig) (string, error) {
+	var dbParams []string
+	dbParams = append(dbParams, fmt.Sprintf("user=%s", config.User))
+	dbParams = append(dbParams, fmt.Sprintf("host=%s", config.Host))
+	dbParams = append(dbParams, fmt.Sprintf("port=%s", config.Port))
+	dbParams = append(dbParams, fmt.Sprintf("dbname=%s", config.DBName))
+	if password := config.Password; password != "" {
+		dbParams = append(dbParams, fmt.Sprintf("password=%s", password))
+	}
+	dbParams = append(dbParams, fmt.Sprintf("sslmode=%s",
+		config.SSLMode))
+	return strings.Join(dbParams, " "), nil
 }

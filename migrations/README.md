@@ -9,3 +9,12 @@ the sql `-- +goose Up` and `-- +goose Down`; these control what sql is run for t
 `up` and `down` commands respectively.
 
 Goose creates and manages a table storing migration information in a table `goose_db_version`.
+
+you can run from the root by do 
+```bash
+go run migrations/migrate up 
+```
+or  
+```bash
+go run migrations/migrate down 
+```
