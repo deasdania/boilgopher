@@ -1,4 +1,4 @@
-package postgres
+package postgresutil
 
 import (
 	"context"
@@ -6,11 +6,16 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
+	"regexp"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
 	"github.com/pressly/goose"
 	"github.com/spf13/viper"
+	"github.com/uptrace/opentelemetry-go-extra/otelsqlx"
 )
 
 type NamedExecerContext interface {
@@ -60,6 +65,18 @@ func connectx(config *viper.Viper) (*sqlx.DB, error) {
 	}
 
 	return db, nil
+}
+
+// NewDBStringFromConfig build database connection string from config file.
+func NewDBFromConfig(config *viper.Viper) (*DBConfig, error) {
+	var allConfig struct {
+		Database DBConfig `mapstructure:"database"`
+	}
+	if err := config.Unmarshal(&allConfig); err != nil {
+		return nil, fmt.Errorf("cannot unmarshal db config: %w", err)
+	}
+
+	return &allConfig.Database, nil
 }
 
 // NewDBStringFromConfig build database connection string from config file.
@@ -162,4 +179,50 @@ func Open(config *viper.Viper) (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+// replaceDBName replaces the dbname option in connection string with given db name in parameter.
+func replaceDBName(connStr, dbName string) string {
+	r := regexp.MustCompile(`dbname=([^\s]+)\s`)
+	return r.ReplaceAllString(connStr, fmt.Sprintf("dbname=%s ", dbName))
+}
+
+// MustNewDevelopmentDB creates a new isolated database for the use of a package test
+// The checking of dbconn is expected to be done in the package test using this
+func MustNewDevelopmentDB(ddlConnStr, migrationDir string) (*sqlx.DB, func()) {
+	const driver = "postgres"
+
+	dbName := uuid.New().String()
+	ddlDB := otelsqlx.MustConnect(driver, ddlConnStr)
+	ddlDB.MustExec(fmt.Sprintf(`CREATE DATABASE "%s"`, dbName))
+	if err := ddlDB.Close(); err != nil {
+		panic(err)
+	}
+
+	connStr := replaceDBName(ddlConnStr, dbName)
+	db := otelsqlx.MustConnect(driver, connStr)
+
+	if err := goose.Run("up", db.DB, migrationDir); err != nil {
+		panic(err)
+	}
+
+	tearDownFn := func() {
+		if err := db.Close(); err != nil {
+			log.Fatalf("failed to close database connection: %s", err.Error())
+		}
+		ddlDB, err := otelsqlx.Connect(driver, ddlConnStr)
+		if err != nil {
+			log.Fatalf("failed to connect database: %s", err.Error())
+		}
+
+		if _, err = ddlDB.Exec(fmt.Sprintf(`DROP DATABASE "%s"`, dbName)); err != nil {
+			log.Fatalf("failed to drop database: %s", err.Error())
+		}
+
+		if err = ddlDB.Close(); err != nil {
+			log.Fatalf("failed to close DDL database connection: %s", err.Error())
+		}
+	}
+
+	return db, tearDownFn
 }

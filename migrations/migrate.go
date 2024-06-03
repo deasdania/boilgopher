@@ -1,7 +1,7 @@
 package main
 
 import (
-	p "boilgopher/storage/postgres"
+	p "boilgopher/storage/postgresutil"
 	"log"
 
 	_ "github.com/lib/pq"

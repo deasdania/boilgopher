@@ -1,7 +1,7 @@
 package main
 
 import (
-	"boilgopher/storage/postgres"
+	"boilgopher/storage/postgresutil"
 	"log"
 	"strings"
 
@@ -36,7 +36,7 @@ func main() {
 	logger.Println("starting service...")
 
 	// use it when we need
-	_, err := postgres.New(config)
+	_, err := postgresutil.New(config)
 	if err != nil {
 		log.Fatalf("failed creating postgres storage: %v", err)
 	}

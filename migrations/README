@@ -12,9 +12,9 @@ Goose creates and manages a table storing migration information in a table `goos
 
 you can run from the root by do 
 ```bash
-go run migrations/migrate up 
+go run migrations/migrate.go up 
 ```
 or  
 ```bash
-go run migrations/migrate down 
+go run migrations/migrate.go down 
 ```

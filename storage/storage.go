@@ -5,6 +5,9 @@ import (
 	"time"
 )
 
+type Storage interface {
+}
+
 //go:generate stringer -type=BookType -linecomment
 type BookType int
 
