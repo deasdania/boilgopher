@@ -1,6 +1,7 @@
 package postgresql
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -16,6 +17,10 @@ import (
 )
 
 const dbConnEnv = "DATABASE_CONNECTION"
+
+type GetterContext interface {
+	GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
+}
 
 // Storage provides a wrapper around an sql database and provides
 // required methods for interacting with the database

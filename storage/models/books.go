@@ -38,6 +38,39 @@ func (b Book) String() string {
 	return fmt.Sprintf(" %s - %d", b.Title, b.Created.Year())
 }
 
+type BookFilter struct {
+	ID    uuid.UUID
+	Title string
+	Year  string
+	Tags  StringArray
+}
+
+type BookFilterOption func(*BookFilter)
+
+func BookFilterByID(ID uuid.UUID) BookFilterOption {
+	return func(a *BookFilter) {
+		a.ID = ID
+	}
+}
+
+func BookFilterByYear(Year string) BookFilterOption {
+	return func(a *BookFilter) {
+		a.Year = Year
+	}
+}
+
+func BookFilterByTitle(Title string) BookFilterOption {
+	return func(a *BookFilter) {
+		a.Title = Title
+	}
+}
+
+func BookFilterByTags(Tags StringArray) BookFilterOption {
+	return func(a *BookFilter) {
+		a.Tags = Tags
+	}
+}
+
 // StringArray is a custom type representing a slice of strings.
 type StringArray []string
 
